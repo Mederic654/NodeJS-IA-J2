@@ -11,7 +11,7 @@ function question(prompt) {
     return new Promise(resolve => rl.question(prompt, resolve));
 }
 
-const MAX_HISTORY = 5
+const MAX_HISTORY = 20
 
 const history = [
     {
@@ -66,8 +66,37 @@ while (true) {
         console.log(`Provider changé : (${currentProvider.type} ${currentProvider.model})`)
         continue;
     }
+    if (input.startsWith('/resume')) {resume(); continue;}
     await chatStream(input);
     await compressHistory();
+}
+
+async function resume() {
+
+    var prompt = [{
+        role : 'user',
+        content : 'résume moi toute notre discussion en max 5 bullet points, chacun commencant par un verbe'
+    }];
+
+    prompt = [...history, ...prompt];
+
+    const response = await fetch(currentProvider.url, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentProvider.key}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: currentProvider.model,
+                messages: prompt,
+                temperature: 0.7
+            })
+        });
+        
+        const data = await response.json();            
+        const assistantMessage = data.choices[0].message.content;
+
+        console.log(assistantMessage);        
 }
 
 async function compressHistory() {
