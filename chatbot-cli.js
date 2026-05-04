@@ -61,46 +61,95 @@ console.log('Chatbot CLI - Phase 1. (Ctrl+C pour quitter)');
 //boucle question IA
 while (true) {
     const input = await question('Vous : ');
-    if (input.startsWith('/history')) { console.log(history); continue; }
-    if (input.startsWith('/provider') && switchProvider(input)) {
-        console.log(`Provider changé : (${currentProvider.type} ${currentProvider.model})`)
+
+    if (input.startsWith(' /history')) {
+        console.log(history);
         continue;
     }
-    if (input.startsWith('/resume')) {resume(); continue;}
+    else if (input.startsWith('/provider')) {
+        if (switchProvider(input)) {
+            console.log(`Provider changé : (${currentProvider.type} ${currentProvider.model})`)
+        }
+        else { console.log(`Provider non supporté`); }
+
+        continue;
+    }
+    else if (input.startsWith('/resume')) {
+        await resume();
+        continue;
+    }
+    else if (input.startsWith('/translate')) {
+        await translateLast(input);
+        continue;
+    }
     await chatStream(input);
     await compressHistory();
+}
+
+async function translateLast(targetLanguage) {
+
+    targetLanguage = targetLanguage.trim().split(" ")[1];
+
+    var lastPromptResult = [...history].reverse().find(m => m.role === 'assistant');
+
+    var prompt = [{
+        role: 'system',
+        content: `Tu es un traducteur. Réponds uniquement avec la traduction. en ${targetLanguage}`
+    },
+    {
+        role: 'user',
+        content: `${lastPromptResult.content}`
+    }]
+
+    const response = await fetch(currentProvider.url, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${currentProvider.key}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: currentProvider.model,
+            messages: prompt,
+            temperature: 0.1
+        })
+    });
+
+    const data = await response.json();
+    const assistantMessage = data.choices[0].message.content;
+
+    console.log(assistantMessage);
 }
 
 async function resume() {
 
     var prompt = [{
-        role : 'user',
-        content : 'résume moi toute notre discussion en max 5 bullet points, chacun commencant par un verbe'
+        role: 'user',
+        content: 'résume moi toute notre discussion en max 5 bullet points, chacun commencant par un verbe'
     }];
 
     prompt = [...history, ...prompt];
 
     const response = await fetch(currentProvider.url, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${currentProvider.key}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: currentProvider.model,
-                messages: prompt,
-                temperature: 0.7
-            })
-        });
-        
-        const data = await response.json();            
-        const assistantMessage = data.choices[0].message.content;
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${currentProvider.key}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            model: currentProvider.model,
+            messages: prompt,
+            temperature: 0.7
+        })
+    });
 
-        console.log(assistantMessage);        
+    const data = await response.json();
+    const assistantMessage = data.choices[0].message.content;
+
+    console.log(assistantMessage);
 }
 
 async function compressHistory() {
-    
+
     if (history.length >= MAX_HISTORY) {
 
         var histo = history.slice(1).map(m => `${m.role}:\n${m.content}`).join('\n');
@@ -125,17 +174,20 @@ async function compressHistory() {
         });
 
         const data = await response.json();
-        
+
         const assistantMessage = data.choices[0].message.content;
 
         history.splice(1, history.length);
 
-        history.push({role : 'assistant', content: assistantMessage});
-        
+        history.push({ role: 'assistant', content: assistantMessage });
+
         console.log('Contexte compressé');
     }
 }
 async function chatStream(userMessage) {
+
+console.log("aaaaaaaaaaaaa");
+
 
     history.push({
         role: 'user',
